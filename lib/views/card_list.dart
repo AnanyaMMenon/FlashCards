@@ -16,12 +16,12 @@ class CardList extends StatefulWidget {
 
 class _CardListState extends State<CardList> {
   List<Flashcard> _flashcards = [];
-  bool _sortAZ = true; // true for A-Z, false for creation order
+  bool _sortAZ = false; // default to creation order
 
   @override
   void initState() {
     super.initState();
-    _loadFlashcards();
+    _loadFlashcards(); // load in original creation order
   }
 
   Future<void> _loadFlashcards() async {
@@ -35,44 +35,47 @@ class _CardListState extends State<CardList> {
   void _sortFlashcards() {
     setState(() {
       if (_sortAZ) {
-        // Sort A-Z by question
-        _flashcards.sort((a, b) => a.question.compareTo(b.question));
+        _flashcards.sort((a, b) => a.question.toLowerCase().compareTo(b.question.toLowerCase()));
       } else {
-        // Sort by creation order (no additional sorting needed)
-        _loadFlashcards();
+        _loadFlashcards(); // reload from DB in creation order
       }
     });
   }
 
   void _toggleSortOrder() {
-    setState(() {
-      _sortAZ = !_sortAZ;
-      _sortFlashcards();
-    });
+    _sortAZ = !_sortAZ;
+    _sortFlashcards();
   }
 
   void _editFlashcard(Flashcard flashcard) async {
-  final result = await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => CardEditor(deckId: widget.deck.id!, flashcard: flashcard),
-    ),
-  );
-  if (result == true) {
-    _loadFlashcards(); 
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CardEditor(deckId: widget.deck.id!, flashcard: flashcard),
+      ),
+    );
+    if (result == true) {
+      await _loadFlashcards();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Flashcard updated')),
+      );
+    }
   }
-}
-void _addNewFlashcard() async {
-  final result = await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => CardEditor(deckId: widget.deck.id!),
-    ),
-  );
-  if (result == true) {
-    _loadFlashcards(); 
+
+  void _addNewFlashcard() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CardEditor(deckId: widget.deck.id!),
+      ),
+    );
+    if (result == true) {
+      await _loadFlashcards(); // shows new card at bottom
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Flashcard added')),
+      );
+    }
   }
-}
 
   void _startQuiz() {
     Navigator.push(
@@ -87,12 +90,21 @@ void _addNewFlashcard() async {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.deck.title} Deck'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${widget.deck.title} Deck'),
+            Text(
+              _sortAZ ? 'Sorted: A-Z' : 'Sorted: Oldest First',
+              style: const TextStyle(fontSize: 12, color: Color.fromARGB(0, 255, 255, 255)),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.sort),
             onPressed: _toggleSortOrder,
-            tooltip: _sortAZ ? "Sort by Recently Viewed" : "Sort A-Z",
+            tooltip: _sortAZ ? "Sort by Creation Order" : "Sort A-Z",
           ),
           IconButton(
             icon: const Icon(Icons.quiz),
@@ -103,7 +115,7 @@ void _addNewFlashcard() async {
       body: GridView.builder(
         padding: const EdgeInsets.all(8.0),
         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 200, // Max width of each flashcard
+          maxCrossAxisExtent: 200,
           childAspectRatio: 3 / 2,
           crossAxisSpacing: 8.0,
           mainAxisSpacing: 8.0,
@@ -135,15 +147,7 @@ void _addNewFlashcard() async {
       ),
       floatingActionButton: FloatingActionButton(
         child: const Icon(Icons.add),
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CardEditor(deckId: widget.deck.id!),
-            ),
-          );
-          _loadFlashcards();
-        },
+        onPressed: _addNewFlashcard,
       ),
     );
   }
